@@ -192,7 +192,7 @@ app.get('/api/accounts', authenticateToken, async (req, res) => {
     );
 
     const allAccounts = [];
-    let totalBankBalance = 0;
+   let totalBankBalance = 0;
     let totalCreditBalance = 0;
 
     // Fetch balances for each item
@@ -223,8 +223,8 @@ app.get('/api/accounts', authenticateToken, async (req, res) => {
             accountData.creditBalance = creditBalance;
             accountData.availableCredit = availableCredit;
             totalCreditBalance += creditBalance;
-          } else {
-            // For bank accounts, use available balance
+          } else if (account.type !== 'loan') {
+            // For bank accounts (NOT loans), use available balance
             totalBankBalance += (account.balances.available || account.balances.current || 0);
           }
 
