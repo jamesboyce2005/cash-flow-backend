@@ -205,7 +205,7 @@ app.get('/api/accounts', authenticateToken, async (req, res) => {
         for (const account of balanceResponse.data.accounts) {
           // Get database settings for this account
           const dbAccount = await pool.query(
-            'SELECT hidden, custom_name FROM accounts WHERE plaid_account_id = $1 AND user_id = $2',
+            'SELECT hidden, custom_name, display_order FROM accounts WHERE plaid_account_id = $1 AND user_id = $2',
             [account.account_id, req.user.id]
           );
 
@@ -220,6 +220,7 @@ app.get('/api/accounts', authenticateToken, async (req, res) => {
             current: account.balances.current,
             hidden: dbAccount.rows[0]?.hidden || false,
             custom_name: dbAccount.rows[0]?.custom_name || null,
+            display_order: dbAccount.rows[0]?.display_order || 0,
           };
 
           // Calculate credit card balance (Limit - Available)
