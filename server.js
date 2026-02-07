@@ -349,6 +349,25 @@ app.patch('/api/accounts/:accountId/rename', authenticateToken, async (req, res)
   }
 });
 
+// Update account display order
+app.patch('/api/accounts/reorder', authenticateToken, async (req, res) => {
+  try {
+    const { accountOrders } = req.body; // Array of {accountId, order}
+    
+    for (const item of accountOrders) {
+      await pool.query(
+        'UPDATE accounts SET display_order = $1 WHERE plaid_account_id = $2 AND user_id = $3',
+        [item.order, item.accountId, req.user.id]
+      );
+    }
+    
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error updating account order:', error);
+    res.status(500).json({ error: 'Failed to update order' });
+  }
+});
+
 // Get transactions for an account
 app.get('/api/accounts/:accountId/transactions', authenticateToken, async (req, res) => {
   try {
