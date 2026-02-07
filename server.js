@@ -294,6 +294,173 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok' });
 });
 
+// ==================== ACCOUNT MANAGEMENT ROUTES ====================
+
+// Hide/show account
+app.patch('/api/accounts/:accountId/toggle-hide', authenticateToken, async (req, res) => {
+  try {
+    const { accountId } = req.params;
+    
+    const result = await pool.query(
+      'UPDATE accounts SET hidden = NOT hidden WHERE plaid_account_id = $1 AND user_id = $2 RETURNING hidden',
+      [accountId, req.user.id]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Account not found' });
+    }
+    
+    res.json({ hidden: result.rows[0].hidden });
+  } catch (error) {
+    console.error('Error toggling account visibility:', error);
+    res.status(500).json({ error: 'Failed to update account' });
+  }
+});
+
+// Rename account
+app.patch('/api/accounts/:accountId/rename', authenticateToken, async (req, res) => {
+  try {
+    const { accountId } = req.params;
+    const { customName } = req.body;
+    
+    await pool.query(
+      'UPDATE accounts SET custom_name = $1 WHERE plaid_account_id = $2 AND user_id = $3',
+      [customName, accountId, req.user.id]
+    );
+    
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error renaming account:', error);
+    res.status(500).json({ error: 'Failed to rename account' });
+  }
+});
+
+// Get transactions for an account
+app.get('/api/accounts/:accountId/transactions', authenticateToken, async (req, res) => {
+  try {
+    const { accountId } = req.params;
+    
+    // Get the item for this account
+    const accountResult = await pool.query(
+      'SELECT item_id FROM accounts WHERE plaid_account_id = $1 AND user_id = $2',
+      [accountId, req.user.id]
+    );
+    
+    if (accountResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Account not found' });
+    }
+    
+    const itemId = accountResult.rows[0].item_id;
+    
+    // Get access token
+    const itemResult = await pool.query(
+      'SELECT access_token FROM plaid_items WHERE item_id = $1 AND user_id = $2',
+      [itemId, req.user.id]
+    );
+    
+    if (itemResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Item not found' });
+    }
+    
+    const accessToken = itemResult.rows[0].access_token;
+    
+    // Get last 30 days of transactions
+    const endDate = new Date().toISOString().split('T')[0];
+    const startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    
+    const transactionsResponse = await plaidClient.transactionsGet({
+      access_token: accessToken,
+      start_date: startDate,
+      end_date: endDate,
+    });
+    
+    // Filter transactions for this specific account
+    const accountTransactions = transactionsResponse.data.transactions.filter(
+      t => t.account_id === accountId
+    );
+    
+    res.json({ transactions: accountTransactions });
+  } catch (error) {
+    console.error('Error fetching transactions:', error);
+    res.status(500).json({ error: 'Failed to fetch transactions' });
+  }
+});
+
+// ==================== BILLS ROUTES ====================
+
+// Get bills for current month
+app.get('/api/bills', authenticateToken, async (req, res) => {
+  try {
+    const now = new Date();
+    const month = now.getMonth() + 1;
+    const year = now.getFullYear();
+    
+    const result = await pool.query(
+      'SELECT * FROM bills WHERE user_id = $1 AND month = $2 AND year = $3 ORDER BY due_day',
+      [req.user.id, month, year]
+    );
+    
+    res.json({ bills: result.rows });
+  } catch (error) {
+    console.error('Error fetching bills:', error);
+    res.status(500).json({ error: 'Failed to fetch bills' });
+  }
+});
+
+// Create bill
+app.post('/api/bills', authenticateToken, async (req, res) => {
+  try {
+    const { name, amount, due_day } = req.body;
+    const now = new Date();
+    const month = now.getMonth() + 1;
+    const year = now.getFullYear();
+    
+    const result = await pool.query(
+      'INSERT INTO bills (user_id, name, amount, due_day, month, year) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
+      [req.user.id, name, amount, due_day, month, year]
+    );
+    
+    res.json({ bill: result.rows[0] });
+  } catch (error) {
+    console.error('Error creating bill:', error);
+    res.status(500).json({ error: 'Failed to create bill' });
+  }
+});
+
+// Toggle bill paid status
+app.patch('/api/bills/:billId/toggle-paid', authenticateToken, async (req, res) => {
+  try {
+    const { billId } = req.params;
+    
+    const result = await pool.query(
+      'UPDATE bills SET is_paid = NOT is_paid WHERE id = $1 AND user_id = $2 RETURNING is_paid',
+      [billId, req.user.id]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Bill not found' });
+    }
+    
+    res.json({ is_paid: result.rows[0].is_paid });
+  } catch (error) {
+    console.error('Error toggling bill status:', error);
+    res.status(500).json({ error: 'Failed to update bill' });
+  }
+});
+
+// Delete bill
+app.delete('/api/bills/:billId', authenticateToken, async (req, res) => {
+  try {
+    const { billId } = req.params;
+    
+    await pool.query('DELETE FROM bills WHERE id = $1 AND user_id = $2', [billId, req.user.id]);
+    
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting bill:', error);
+    res.status(500).json({ error: 'Failed to delete bill' });
+  }
+});
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
