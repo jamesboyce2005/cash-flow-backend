@@ -192,7 +192,7 @@ app.get('/api/accounts', authenticateToken, async (req, res) => {
     );
 
     const allAccounts = [];
-   let totalBankBalance = 0;
+    let totalBankBalance = 0;
     let totalCreditBalance = 0;
 
     // Fetch balances for each item
@@ -203,6 +203,12 @@ app.get('/api/accounts', authenticateToken, async (req, res) => {
         });
 
         for (const account of balanceResponse.data.accounts) {
+          // Get database settings for this account
+          const dbAccount = await pool.query(
+            'SELECT hidden, custom_name FROM accounts WHERE plaid_account_id = $1 AND user_id = $2',
+            [account.account_id, req.user.id]
+          );
+
           const accountData = {
             id: account.account_id,
             name: account.name,
@@ -212,6 +218,8 @@ app.get('/api/accounts', authenticateToken, async (req, res) => {
             balance: account.balances.available || account.balances.current,
             limit: account.balances.limit,
             current: account.balances.current,
+            hidden: dbAccount.rows[0]?.hidden || false,
+            custom_name: dbAccount.rows[0]?.custom_name || null,
           };
 
           // Calculate credit card balance (Limit - Available)
@@ -222,10 +230,17 @@ app.get('/api/accounts', authenticateToken, async (req, res) => {
             
             accountData.creditBalance = creditBalance;
             accountData.availableCredit = availableCredit;
-            totalCreditBalance += creditBalance;
+            
+            // Only add to total if not hidden
+            if (!accountData.hidden) {
+              totalCreditBalance += creditBalance;
+            }
           } else if (account.type !== 'loan') {
             // For bank accounts (NOT loans), use available balance
-            totalBankBalance += (account.balances.available || account.balances.current || 0);
+            // Only add to total if not hidden
+            if (!accountData.hidden) {
+              totalBankBalance += (account.balances.available || account.balances.current || 0);
+            }
           }
 
           allAccounts.push(accountData);
@@ -257,7 +272,6 @@ app.get('/api/accounts', authenticateToken, async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch accounts' });
   }
 });
-
 // Remove/delete a linked account
 app.delete('/api/plaid/item/:itemId', authenticateToken, async (req, res) => {
   try {
