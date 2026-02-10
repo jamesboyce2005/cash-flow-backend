@@ -141,6 +141,40 @@ app.post('/api/plaid/create-link-token', authenticateToken, async (req, res) => 
   }
 });
 
+// Create Plaid Link token for updating an item
+app.post('/api/plaid/create-update-token/:itemId', authenticateToken, async (req, res) => {
+  try {
+    const { itemId } = req.params;
+    
+    // Get access token for this item
+    const result = await pool.query(
+      'SELECT access_token FROM plaid_items WHERE item_id = $1 AND user_id = $2',
+      [itemId, req.user.id]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Item not found' });
+    }
+    
+    const configs = {
+      user: {
+        client_user_id: req.user.id.toString(),
+      },
+      client_name: 'Cash Flow Tracker',
+      products: ['transactions'],
+      country_codes: ['US'],
+      language: 'en',
+      access_token: result.rows[0].access_token,
+    };
+    
+    const createTokenResponse = await plaidClient.linkTokenCreate(configs);
+    res.json({ link_token: createTokenResponse.data.link_token });
+  } catch (error) {
+    console.error('Error creating update token:', error);
+    res.status(500).json({ error: 'Failed to create update token' });
+  }
+});
+
 // Exchange public token for access token
 app.post('/api/plaid/exchange-public-token', authenticateToken, async (req, res) => {
   try {
