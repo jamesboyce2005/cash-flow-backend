@@ -329,10 +329,18 @@ const balanceResponse = await plaidClient.accountsBalanceGet(balanceRequest);
           allAccounts.push(accountData);
 
           // Update balance in database
-          await pool.query(
-            'UPDATE accounts SET last_balance = $1, last_updated = NOW() WHERE plaid_account_id = $2',
-            [account.balances.current, account.account_id]
-          );
+          // Update balance in database
+if (account.type === 'credit') {
+  await pool.query(
+    'UPDATE accounts SET last_balance = $1, credit_limit = $2, available_credit = $3, last_updated = NOW() WHERE plaid_account_id = $4',
+    [account.balances.current, account.balances.limit, account.balances.available, account.account_id]
+  );
+} else {
+  await pool.query(
+    'UPDATE accounts SET last_balance = $1, last_updated = NOW() WHERE plaid_account_id = $2',
+    [account.balances.current, account.account_id]
+  );
+}
         }
       } catch (error) {
         console.error(`Error fetching balances for item ${item.item_id}:`, error);
