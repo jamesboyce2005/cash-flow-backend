@@ -186,19 +186,21 @@ app.post('/api/plaid/exchange-public-token', authenticateToken, async (req, res)
 app.get('/api/accounts/cached', authenticateToken, async (req, res) => {
   try {
     const accountsResult = await pool.query(
-      `SELECT 
-        plaid_account_id as id, 
-        name, 
-        type, 
-        subtype, 
-        mask, 
-        last_balance, 
-        custom_name, 
-        hidden, 
-        display_order,
-        last_updated,
-        item_id
-      FROM accounts 
+     SELECT 
+  plaid_account_id as id, 
+  name, 
+  type, 
+  subtype, 
+  mask, 
+  last_balance,
+  credit_limit,
+  available_credit,
+  custom_name, 
+  hidden, 
+  display_order,
+  last_updated,
+  item_id
+FROM accounts
       WHERE user_id = $1 
       ORDER BY display_order`,
       [req.user.id]
@@ -223,16 +225,20 @@ app.get('/api/accounts/cached', authenticateToken, async (req, res) => {
       };
 
       // Calculate totals (exclude hidden accounts and loans)
-      if (!acc.hidden) {
-        if (acc.type === 'credit') {
-          // For credit, we'd need limit stored too - for now just use balance
-          const creditBalance = parseFloat(acc.last_balance) || 0;
-          account.creditBalance = creditBalance;
-          totalCreditBalance += creditBalance;
-        } else if (acc.type !== 'loan') {
-          totalBankBalance += parseFloat(acc.last_balance) || 0;
-        }
-      }
+if (!acc.hidden) {
+  if (acc.type === 'credit') {
+    const creditLimit = parseFloat(acc.credit_limit) || 0;
+    const availableCredit = parseFloat(acc.available_credit) || 0;
+    const creditBalance = creditLimit - availableCredit;
+    
+    account.creditBalance = creditBalance;
+    account.availableCredit = availableCredit;
+    account.limit = creditLimit;
+    totalCreditBalance += creditBalance;
+  } else if (acc.type !== 'loan') {
+    totalBankBalance += parseFloat(acc.last_balance) || 0;
+  }
+}
 
       return account;
     });
@@ -588,11 +594,18 @@ const balanceResponse = await plaidClient.accountsBalanceGet(balanceRequest);
       accountData.availableCredit = availableCredit;
     }
     
-    // Update balance in database
-    await pool.query(
-      'UPDATE accounts SET last_balance = $1, last_updated = NOW() WHERE plaid_account_id = $2',
-      [account.balances.current, accountId]
-    );
+ // Update balance in database
+if (account.type === 'credit') {
+  await pool.query(
+    'UPDATE accounts SET last_balance = $1, credit_limit = $2, available_credit = $3, last_updated = NOW() WHERE plaid_account_id = $4',
+    [account.balances.current, account.balances.limit, account.balances.available, accountId]
+  );
+} else {
+  await pool.query(
+    'UPDATE accounts SET last_balance = $1, last_updated = NOW() WHERE plaid_account_id = $2',
+    [account.balances.current, accountId]
+  );
+}
     
     res.json({ account: accountData });
   } catch (error) {
