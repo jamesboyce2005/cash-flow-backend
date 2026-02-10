@@ -283,8 +283,7 @@ balanceRequest.options = {
 };
 
 const balanceResponse = await plaidClient.accountsBalanceGet(balanceRequest);
-        });
-
+ 
         for (const account of balanceResponse.data.accounts) {
           // Get database settings for this account
           const dbAccount = await pool.query(
