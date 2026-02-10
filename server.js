@@ -325,7 +325,27 @@ balanceRequest.options = {
 
 const balanceResponse = await plaidClient.accountsBalanceGet(balanceRequest);
 
-
+        // Try to get credit card limits from liabilities endpoint
+        let liabilitiesData = {};
+        try {
+          const liabilitiesResponse = await plaidClient.liabilitiesGet({
+            access_token: item.access_token,
+          });
+          
+          console.log('Liabilities response:', JSON.stringify(liabilitiesResponse.data.liabilities));
+          
+          // Map credit card data by account_id
+          if (liabilitiesResponse.data.liabilities?.credit) {
+            liabilitiesResponse.data.liabilities.credit.forEach(card => {
+              liabilitiesData[card.account_id] = {
+                limit: card.last_statement_balance || null,
+                aprs: card.aprs
+              };
+            });
+          }
+        } catch (err) {
+          console.log('Liabilities endpoint not available for this item:', err.message);
+        }
  
         for (const account of balanceResponse.data.accounts) {
 console.log(`Account: ${account.name}, Type: ${account.type}, Balances:`, account.balances);
