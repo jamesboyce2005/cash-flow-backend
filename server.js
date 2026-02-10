@@ -245,18 +245,19 @@ FROM accounts
     let totalCreditBalance = 0;
 
     const accounts = accountsResult.rows.map(acc => {
-      const account = {
-        id: acc.id,
-        name: acc.name,
-        type: acc.type,
-        subtype: acc.subtype,
-        mask: acc.mask,
-        balance: parseFloat(acc.last_balance) || 0,
-        custom_name: acc.custom_name,
-        hidden: acc.hidden,
-        display_order: acc.display_order,
-        last_updated: acc.last_updated,
-      };
+const account = {
+  id: acc.id,
+  name: acc.name,
+  type: acc.type,
+  subtype: acc.subtype,
+  mask: acc.mask,
+  balance: parseFloat(acc.last_balance) || 0,
+  custom_name: acc.custom_name,
+  hidden: acc.hidden,
+  display_order: acc.display_order,
+  last_updated: acc.last_updated,
+  item_id: acc.item_id,
+};
 
       // Calculate totals (exclude hidden accounts and loans)
 if (!acc.hidden) {
