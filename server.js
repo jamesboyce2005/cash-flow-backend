@@ -325,12 +325,10 @@ balanceRequest.options = {
 
 const balanceResponse = await plaidClient.accountsBalanceGet(balanceRequest);
 
-        console.log(`Fetching balances for item: ${item.item_id}, institution: ${item.institution_id}`);
-        
-        for (const account of balanceResponse.data.accounts) {
-          console.log(`Account ${account.name} balances:`, JSON.stringify(account.balances));
+
  
         for (const account of balanceResponse.data.accounts) {
+console.log(`Account: ${account.name}, Type: ${account.type}, Balances:`, account.balances);
           // Get database settings for this account
           const dbAccount = await pool.query(
             'SELECT hidden, custom_name, display_order FROM accounts WHERE plaid_account_id = $1 AND user_id = $2',
