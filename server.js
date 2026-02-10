@@ -129,7 +129,7 @@ app.post('/api/plaid/create-link-token', authenticateToken, async (req, res) => 
         client_user_id: req.user.id.toString(),
       },
       client_name: 'Cash Flow Tracker',
-      products: ['transactions'],
+      products: ['transactions', 'liabilities'],
       country_codes: ['US'],
       language: 'en',
     });
@@ -161,7 +161,7 @@ app.post('/api/plaid/create-update-token/:itemId', authenticateToken, async (req
         client_user_id: req.user.id.toString(),
       },
       client_name: 'Cash Flow Tracker',
-      products: ['transactions'],
+      products: ['transactions', 'liabilities'],
       country_codes: ['US'],
       language: 'en',
       access_token: result.rows[0].access_token,
