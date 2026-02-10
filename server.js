@@ -344,6 +344,7 @@ const balanceResponse = await plaidClient.accountsBalanceGet(balanceRequest);
             hidden: dbAccount.rows[0]?.hidden || false,
             custom_name: dbAccount.rows[0]?.custom_name || null,
             display_order: dbAccount.rows[0]?.display_order || 0,
+            item_id: item.item_id,
           };
 
           // Calculate credit card balance (Limit - Available)
@@ -616,6 +617,7 @@ const balanceResponse = await plaidClient.accountsBalanceGet(balanceRequest);
       hidden: dbAccount.rows[0]?.hidden || false,
       custom_name: dbAccount.rows[0]?.custom_name || null,
       display_order: dbAccount.rows[0]?.display_order || 0,
+      item_id: itemId,
       last_updated: new Date(),
     };
     
