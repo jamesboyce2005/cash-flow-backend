@@ -182,6 +182,78 @@ app.post('/api/plaid/exchange-public-token', authenticateToken, async (req, res)
   }
 });
 
+// Get cached account balances (fast, no Plaid API call)
+app.get('/api/accounts/cached', authenticateToken, async (req, res) => {
+  try {
+    const accountsResult = await pool.query(
+      `SELECT 
+        plaid_account_id as id, 
+        name, 
+        type, 
+        subtype, 
+        mask, 
+        last_balance, 
+        custom_name, 
+        hidden, 
+        display_order,
+        last_updated,
+        item_id
+      FROM accounts 
+      WHERE user_id = $1 
+      ORDER BY display_order`,
+      [req.user.id]
+    );
+
+    // Calculate summary from cached balances
+    let totalBankBalance = 0;
+    let totalCreditBalance = 0;
+
+    const accounts = accountsResult.rows.map(acc => {
+      const account = {
+        id: acc.id,
+        name: acc.name,
+        type: acc.type,
+        subtype: acc.subtype,
+        mask: acc.mask,
+        balance: parseFloat(acc.last_balance) || 0,
+        custom_name: acc.custom_name,
+        hidden: acc.hidden,
+        display_order: acc.display_order,
+        last_updated: acc.last_updated,
+      };
+
+      // Calculate totals (exclude hidden accounts and loans)
+      if (!acc.hidden) {
+        if (acc.type === 'credit') {
+          // For credit, we'd need limit stored too - for now just use balance
+          const creditBalance = parseFloat(acc.last_balance) || 0;
+          account.creditBalance = creditBalance;
+          totalCreditBalance += creditBalance;
+        } else if (acc.type !== 'loan') {
+          totalBankBalance += parseFloat(acc.last_balance) || 0;
+        }
+      }
+
+      return account;
+    });
+
+    const netAvailableCash = totalBankBalance - totalCreditBalance;
+
+    res.json({
+      accounts,
+      summary: {
+        totalBankBalance: totalBankBalance.toFixed(2),
+        totalCreditBalance: totalCreditBalance.toFixed(2),
+        netAvailableCash: netAvailableCash.toFixed(2),
+      },
+      cached: true,
+    });
+  } catch (error) {
+    console.error('Error fetching cached accounts:', error);
+    res.status(500).json({ error: 'Failed to fetch cached accounts' });
+  }
+});
+
 // Get all accounts and balances
 app.get('/api/accounts', authenticateToken, async (req, res) => {
   try {
