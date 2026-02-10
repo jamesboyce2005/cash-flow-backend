@@ -492,6 +492,89 @@ app.get('/api/accounts/:accountId/transactions', authenticateToken, async (req, 
   }
 });
 
+// Refresh single account balance
+app.get('/api/accounts/:accountId/refresh', authenticateToken, async (req, res) => {
+  try {
+    const { accountId } = req.params;
+    
+    // Get the item for this account
+    const accountResult = await pool.query(
+      'SELECT item_id FROM accounts WHERE plaid_account_id = $1 AND user_id = $2',
+      [accountId, req.user.id]
+    );
+    
+    if (accountResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Account not found' });
+    }
+    
+    const itemId = accountResult.rows[0].item_id;
+    
+    // Get access token
+    const itemResult = await pool.query(
+      'SELECT access_token FROM plaid_items WHERE item_id = $1 AND user_id = $2',
+      [itemId, req.user.id]
+    );
+    
+    if (itemResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Item not found' });
+    }
+    
+    const accessToken = itemResult.rows[0].access_token;
+    
+    // Fetch fresh balance from Plaid
+    const balanceResponse = await plaidClient.accountsBalanceGet({
+      access_token: accessToken,
+      options: {
+        account_ids: [accountId]
+      }
+    });
+    
+    const account = balanceResponse.data.accounts[0];
+    
+    // Get database settings
+    const dbAccount = await pool.query(
+      'SELECT hidden, custom_name, display_order FROM accounts WHERE plaid_account_id = $1 AND user_id = $2',
+      [accountId, req.user.id]
+    );
+    
+    const accountData = {
+      id: account.account_id,
+      name: account.name,
+      type: account.type,
+      subtype: account.subtype,
+      mask: account.mask,
+      balance: account.balances.available || account.balances.current,
+      limit: account.balances.limit,
+      current: account.balances.current,
+      hidden: dbAccount.rows[0]?.hidden || false,
+      custom_name: dbAccount.rows[0]?.custom_name || null,
+      display_order: dbAccount.rows[0]?.display_order || 0,
+      last_updated: new Date(),
+    };
+    
+    // Calculate credit card balance if needed
+    if (account.type === 'credit') {
+      const creditLimit = account.balances.limit || 0;
+      const availableCredit = account.balances.available || 0;
+      const creditBalance = creditLimit - availableCredit;
+      
+      accountData.creditBalance = creditBalance;
+      accountData.availableCredit = availableCredit;
+    }
+    
+    // Update balance in database
+    await pool.query(
+      'UPDATE accounts SET last_balance = $1, last_updated = NOW() WHERE plaid_account_id = $2',
+      [account.balances.current, accountId]
+    );
+    
+    res.json({ account: accountData });
+  } catch (error) {
+    console.error('Error refreshing single account:', error);
+    res.status(500).json({ error: 'Failed to refresh account' });
+  }
+});
+
 // ==================== BILLS ROUTES ====================
 
 // Get bills for current month
