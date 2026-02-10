@@ -270,8 +270,19 @@ app.get('/api/accounts', authenticateToken, async (req, res) => {
     // Fetch balances for each item
     for (const item of itemsResult.rows) {
       try {
-        const balanceResponse = await plaidClient.accountsBalanceGet({
-          access_token: item.access_token,
+// Capital One requires min_last_updated_datetime parameter
+const balanceRequest = {
+  access_token: item.access_token,
+};
+
+// Add min_last_updated_datetime for institutions that require it
+const oneDayAgo = new Date();
+oneDayAgo.setDate(oneDayAgo.getDate() - 1);
+balanceRequest.options = {
+  min_last_updated_datetime: oneDayAgo.toISOString()
+};
+
+const balanceResponse = await plaidClient.accountsBalanceGet(balanceRequest);
         });
 
         for (const account of balanceResponse.data.accounts) {
@@ -522,12 +533,20 @@ app.get('/api/accounts/:accountId/refresh', authenticateToken, async (req, res) 
     const accessToken = itemResult.rows[0].access_token;
     
     // Fetch fresh balance from Plaid
-    const balanceResponse = await plaidClient.accountsBalanceGet({
-      access_token: accessToken,
-      options: {
-        account_ids: [accountId]
-      }
-    });
+   // Capital One requires min_last_updated_datetime parameter
+const balanceRequest = {
+  access_token: accessToken,
+  options: {
+    account_ids: [accountId]
+  }
+};
+
+// Add min_last_updated_datetime for institutions that require it
+const oneDayAgo = new Date();
+oneDayAgo.setDate(oneDayAgo.getDate() - 1);
+balanceRequest.options.min_last_updated_datetime = oneDayAgo.toISOString();
+
+const balanceResponse = await plaidClient.accountsBalanceGet(balanceRequest);
     
     const account = balanceResponse.data.accounts[0];
     
