@@ -186,7 +186,7 @@ app.post('/api/plaid/exchange-public-token', authenticateToken, async (req, res)
 app.get('/api/accounts/cached', authenticateToken, async (req, res) => {
   try {
     const accountsResult = await pool.query(
-     SELECT 
+     `SELECT 
   plaid_account_id as id, 
   name, 
   type, 
