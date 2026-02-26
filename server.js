@@ -115,7 +115,7 @@ app.get('/api/accounts', authenticateToken, async (req, res) => {
         id,
         name, 
         type, 
-        balance,
+        last_balance,
         credit_limit,
         custom_name, 
         hidden, 
@@ -135,7 +135,7 @@ app.get('/api/accounts', authenticateToken, async (req, res) => {
         id: acc.id,
         name: acc.name,
         type: acc.type,
-        balance: parseFloat(acc.balance) || 0,
+        balance: parseFloat(acc.last_balance) || 0,
         custom_name: acc.custom_name,
         hidden: acc.hidden,
         display_order: acc.display_order,
@@ -146,7 +146,7 @@ app.get('/api/accounts', authenticateToken, async (req, res) => {
       if (!acc.hidden) {
         if (acc.type === 'credit') {
           const creditLimit = parseFloat(acc.credit_limit) || 0;
-          const balance = parseFloat(acc.balance) || 0;
+          const balance = parseFloat(acc.last_balance) || 0;
           
           account.limit = creditLimit;
           account.creditBalance = balance;
@@ -154,7 +154,7 @@ app.get('/api/accounts', authenticateToken, async (req, res) => {
           totalCreditBalance += balance;
         } else {
           // Bank accounts (checking, savings)
-          totalBankBalance += parseFloat(acc.balance) || 0;
+          totalBankBalance += parseFloat(acc.last_balance) || 0;
         }
       }
 
@@ -190,7 +190,7 @@ app.post('/api/accounts', authenticateToken, async (req, res) => {
     const displayOrder = orderResult.rows[0].next_order;
 
     const result = await pool.query(
-      `INSERT INTO accounts (user_id, name, type, balance, credit_limit, display_order, last_updated) 
+      `INSERT INTO accounts (user_id, name, type, last_balance, credit_limit, display_order, last_updated) 
        VALUES ($1, $2, $3, $4, $5, $6, NOW()) 
        RETURNING *`,
       [req.user.id, name, type, balance || 0, credit_limit, displayOrder]
@@ -210,7 +210,7 @@ app.patch('/api/accounts/:accountId/balance', authenticateToken, async (req, res
     const { balance } = req.body;
 
     const result = await pool.query(
-      'UPDATE accounts SET balance = $1, last_updated = NOW() WHERE id = $2 AND user_id = $3 RETURNING *',
+      'UPDATE accounts SET last_balance = $1, last_updated = NOW() WHERE id = $2 AND user_id = $3 RETURNING *',
       [balance, accountId, req.user.id]
     );
 
