@@ -142,9 +142,8 @@ app.get('/api/accounts', authenticateToken, async (req, res) => {
         last_updated: acc.last_updated,
       };
 
-      // Calculate totals (exclude hidden accounts)
-      if (!acc.hidden) {
-        if (acc.type === 'credit') {
+      // Calculate totals
+      if (acc.type === 'credit') {
           const creditLimit = parseFloat(acc.credit_limit) || 0;
           const balance = parseFloat(acc.last_balance) || 0;
           
@@ -156,7 +155,6 @@ app.get('/api/accounts', authenticateToken, async (req, res) => {
           // Bank accounts (checking, savings)
           totalBankBalance += parseFloat(acc.last_balance) || 0;
         }
-      }
 
       return account;
     });
@@ -225,6 +223,28 @@ app.patch('/api/accounts/:accountId/balance', authenticateToken, async (req, res
   }
 });
 
+// Update credit limit
+app.patch('/api/accounts/:accountId/credit-limit', authenticateToken, async (req, res) => {
+  try {
+    const { accountId } = req.params;
+    const { credit_limit } = req.body;
+
+    const result = await pool.query(
+      'UPDATE accounts SET credit_limit = $1, last_updated = NOW() WHERE id = $2 AND user_id = $3 RETURNING *',
+      [credit_limit, accountId, req.user.id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Account not found' });
+    }
+
+    res.json({ account: result.rows[0] });
+  } catch (error) {
+    console.error('Error updating credit limit:', error);
+    res.status(500).json({ error: 'Failed to update credit limit' });
+  }
+});
+
 // Delete account
 app.delete('/api/accounts/:accountId', authenticateToken, async (req, res) => {
   try {
@@ -243,27 +263,6 @@ app.delete('/api/accounts/:accountId', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('Error deleting account:', error);
     res.status(500).json({ error: 'Failed to delete account' });
-  }
-});
-
-// Hide/show account
-app.patch('/api/accounts/:accountId/toggle-hide', authenticateToken, async (req, res) => {
-  try {
-    const { accountId } = req.params;
-    
-    const result = await pool.query(
-      'UPDATE accounts SET hidden = NOT hidden WHERE id = $1 AND user_id = $2 RETURNING hidden',
-      [accountId, req.user.id]
-    );
-    
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Account not found' });
-    }
-    
-    res.json({ hidden: result.rows[0].hidden });
-  } catch (error) {
-    console.error('Error toggling account visibility:', error);
-    res.status(500).json({ error: 'Failed to update account' });
   }
 });
 
