@@ -380,6 +380,18 @@ app.delete('/api/bills/:billId', authenticateToken, async (req, res) => {
   }
 });
 
+// TEMPORARY: Database migration endpoint - remove after running once
+app.post('/api/migrate', async (req, res) => {
+  try {
+    await pool.query('ALTER TABLE accounts ALTER COLUMN plaid_account_id DROP NOT NULL');
+    await pool.query('ALTER TABLE accounts ALTER COLUMN item_id DROP NOT NULL');
+    res.json({ success: true, message: 'Migration completed' });
+  } catch (error) {
+    console.error('Migration error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Health check
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok' });
