@@ -381,7 +381,7 @@ app.delete('/api/bills/:billId', authenticateToken, async (req, res) => {
 });
 
 // TEMPORARY: Database migration endpoint - remove after running once
-app.post('/api/migrate', async (req, res) => {
+app.get('/api/migrate', async (req, res) => {
   try {
     await pool.query('ALTER TABLE accounts ALTER COLUMN plaid_account_id DROP NOT NULL');
     await pool.query('ALTER TABLE accounts ALTER COLUMN item_id DROP NOT NULL');
